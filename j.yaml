@@ -1,0 +1,33 @@
+name: Setup SSH, Create User, and Get External IP
+
+on:
+  push:
+    branches:
+      - main  # Trigger on push to the main branch (adjust as necessary)
+
+jobs:
+  setup-ssh-job:
+    runs-on: ubuntu-latest  # The GitHub Actions runner OS
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Install SSH and setup user on remote server
+        run: |
+          # Install OpenSSH Server if it's not already installed
+          sudo apt-get update -y
+          sudo apt-get install -y openssh-server
+
+          # Create a new user
+          sudo useradd -m newuser  # Replace "newuser" with the desired username
+          echo "newuser:newpassword" | sudo chpasswd  # Replace "newpassword" with desired password
+
+          # Enable SSH service and start it
+          sudo systemctl enable ssh
+          sudo systemctl start ssh
+
+          # Get the external IP using ifconfig.me
+          echo "External IP: $(curl -s ifconfig.me)"
+
+          # You can add other commands to test or customize as needed
