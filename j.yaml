@@ -30,4 +30,8 @@ jobs:
           # Get the external IP using ifconfig.me
           echo "External IP: $(curl -s ifconfig.me)"
 
-          # You can add other commands to test or customize as needed
+          # Keep the job alive by sleeping for an extended time (e.g., 1 hour)
+          sleep 3600  # Sleeps for 1 hour (3600 seconds)
+
+          # Alternatively, use a different long-running process if you want
+          # tail -f /dev/null  # This will indefinitely keep the job running
