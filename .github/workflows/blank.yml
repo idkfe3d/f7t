@@ -1,4 +1,4 @@
-name: Setup SSH, Create User, and Get External IP
+name: Setup Jenkins Server on External IP
 
 on:
   push:
@@ -6,28 +6,68 @@ on:
       - main  # Trigger on push to the main branch (adjust as necessary)
 
 jobs:
-  setup-ssh-job:
+  setup-jenkins:
     runs-on: ubuntu-latest  # The GitHub Actions runner OS
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v3
 
-      - name: Install SSH and setup user on remote server
+      - name: Install Java (required for Jenkins)
         run: |
-          # Install OpenSSH Server if it's not already installed
-          sudo apt-get update -y
-          sudo apt-get install -y openssh-server
+          sudo apt update
+          sudo apt install -y openjdk-11-jdk
 
-          # Create a new user
-          sudo useradd -m newuser  # Replace "newuser" with the desired username
-          echo "newuser:newpassword" | sudo chpasswd  # Replace "newpassword" with desired password
+      - name: Install Jenkins
+        run: |
+          # Add Jenkins repository
+          wget -q -O - https://pkg.jenkins.io/keys/jenkins.io.key | sudo tee /etc/apt/trusted.gpg.d/jenkins.asc
+          sudo sh -c 'echo deb http://pkg.jenkins.io/debian/jenkins.io/ stable main > /etc/apt/sources.list.d/jenkins.list'
 
-          # Enable SSH service and start it
-          sudo systemctl enable ssh
-          sudo systemctl start ssh
+          # Update and install Jenkins
+          sudo apt update
+          sudo apt install -y jenkins
 
-          # Get the external IP using ifconfig.me
-          echo "External IP: $(curl -s ifconfig.me)"
+      - name: Start Jenkins service
+        run: |
+          sudo systemctl start jenkins
+          sudo systemctl enable jenkins
 
-          # You can add other commands to test or customize as needed
+      - name: Allow external access on port 8080
+        run: |
+          # Open Jenkins port 8080
+          sudo ufw allow 8080
+          sudo ufw reload
+
+      - name: Allow Jenkins to run without authentication for creating jobs
+        run: |
+          # Install dependencies
+          sudo apt install -y curl jq
+
+          # Wait for Jenkins to be fully started
+          sleep 30
+
+          # Access Jenkins API to disable authentication for creating new items
+          JENKINS_URL="http://$(curl -s ifconfig.me):8080"
+
+          # Get the initial Jenkins admin password
+          ADMIN_PASSWORD=$(sudo cat /var/lib/jenkins/secrets/initialAdminPassword)
+
+          # Use Jenkins CLI or Groovy script to disable authentication for job creation
+          curl -u admin:$ADMIN_PASSWORD \
+            -X POST "$JENKINS_URL/scriptText" \
+            --data-urlencode "script=\
+            import jenkins.model.Jenkins; \
+            jenkins.model.Jenkins.instance.securityRealm.createAccount('admin', 'admin'); \
+            def hudsonRealm = jenkins.model.Jenkins.instance.getSecurityRealm(); \
+            hudsonRealm.createAccount('anonymous', ''); \
+            jenkins.model.Jenkins.instance.save()"
+
+          # Wait for Jenkins to apply the changes
+          sleep 10
+          
+          # Verify Jenkins is running and accessible
+          curl -I $JENKINS_URL
+
+      - name: Print Jenkins URL
+        run: echo "Jenkins is available at http://$(curl -s ifconfig.me):8080"
